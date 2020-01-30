@@ -28,7 +28,7 @@ def train(loader, encoder, decoder, criterion, opt, print_freq, epoch):
         
         if i % print_freq == 0:
             print('TRAIN: Epoch [{}], Step [{}/{}], Loss: {:.4f}, Perplexity: {:5.4f}'.format(epoch, i, total_steps, loss.item(), np.exp(loss.item()))) 
-        return loss.item()
+    return loss.item()
             
 def validate(loader, encoder, decoder, criterion, print_freq, epoch):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -50,15 +50,15 @@ def validate(loader, encoder, decoder, criterion, print_freq, epoch):
             loss = criterion(packed_outputs, targets)
 
             # TODO: find a way to unpack output of decoder to extract predictions
+            _, predicted = outputs.max(2)
+            candidates = predicted.to("cpu").numpy()
             bleu_score = bleu_eval(outputs, all_caps)
             
             if i % print_freq == 0:
                 print('VAL: Epoch [{}], Step [{}/{}], Loss: {:.4f}, Perplexity: {:5.4f}, BLEU4: {:5.4f}'.format(epoch, i, total_steps, loss.item(), np.exp(loss.item()), bleu_score)) 
     return loss.item(), bleu_score
 
-def bleu_eval(samples, all_caps):
-    _, predicted = samples.max(2)
-    candidates = predicted.numpy()
+def bleu_eval(candidates, all_caps):
     references = []
     all_caps = all_caps[0]
     for cap in all_caps:
