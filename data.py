@@ -8,16 +8,20 @@ from collections import defaultdict, Counter
 
 class Vocabulary(object):
 
-    def __init__(self):
+    def __init__(self, load=True):
         self.words = defaultdict()
-        self.index = defaultdict()
+        self.indices = list()
         self.word_freq = Counter()
         self.idx = 0
+        self.max_len = 0
+
+        if load:
+            self.load()
 
     def add(self, word):
         if not word in self.words:
             self.words[word] = self.idx
-            self.index[self.idx] = word
+            self.indices.append(word)
             self.idx += 1
     
     def __call__(self, word):
@@ -29,14 +33,20 @@ class Vocabulary(object):
         return len(self.words)
 
     def save(self):
-        with open("data/vocab.json", "w") as f:
-            json.dump([self.words]+[self.index], f)
+        with open("data/vocab.json", "w", encoding='utf-8') as f:
+            json.dump([self.words]+\
+                      [self.indices]+\
+                      [self.word_freq]+\
+                      [self.max_len], f)
 
     def load(self):
         with open("data/vocab.json", "r") as f:
             v = json.load(f)
             self.words = v[0]
-            self.index = v[1]
+            self.indices = v[1]
+            self.word_freq = v[2]
+            self.max_len = v[3]
+            self.idx = len(self.indices)
 
 
 class CaptionDataset(Dataset):
@@ -71,7 +81,7 @@ class CaptionDataset(Dataset):
             pass
         
         # Captions
-        with open("data/captions.json", "r") as f:
+        with open("data/captions.json", "r", encoding='utf-8') as f:
             self.captions = json.load(f)
             self.captions = {k: v for k, v in self.captions.items() if k in self.ids.values}
 
@@ -82,51 +92,54 @@ class CaptionDataset(Dataset):
         if self.precomp_features:
             # Feature
             img_id = self.frame[idx]
-            feature = self.features[img_id]
+            image = self.features[img_id]
         else:
+            # Image
             path = "data/images/" + self.paths[idx]
             image = Image.open(path).convert("RGB")
 
             if self.transform is not None:
-                image = self.transform(image)
+                image = self.transform(image) 
 
-        # Caption
-        target = self.captions[self.ids[idx]]["encoded"][0]
-        target = torch.Tensor(target)
+        # Caption+len
+        caption = self.captions[self.ids[idx]]["encoded"][0]
+        length = self.captions[self.ids[idx]]["lengths"][0]
+
+        caption = torch.Tensor(caption)
         if self.split is "TRAIN":
-            return image, target
+            return image, caption, length
         else:
-            all_captions = torch.LongTesnor(self.captions[self.ids[idx]]["encoded"])
-            return image, target, all_captions
+            all_captions = self.captions[self.ids[idx]]["encoded"]
+            return image, caption, length, all_captions
        
 
 def collate_fn(data):
     """
-    <Author: Yunjey Choi, https://github.com/yunjey>
-    Creates mini-batch tensors from the list of tuples (image, caption).
-    
-    We should build custom collate_fn rather than using default collate_fn, 
-    because merging caption (including padding) is not supported in default.
+    Creates mini-batch tensors from the list of tuples (image, caption, length).
     Args:
         data: list of tuple (image, caption). 
             - image: torch tensor of shape (3, 256, 256).
             - caption: torch tensor of shape (?); variable length.
+            - lengths: length of the captions
     Returns:
         images: torch tensor of shape (batch_size, 3, 256, 256).
         targets: torch tensor of shape (batch_size, padded_length).
         lengths: list; valid length for each padded caption.
     """
     # Sort a data list by caption length (descending order).
-    data.sort(key=lambda x: len(x[1]), reverse=True)
-    images, captions = zip(*data)
-    print(captions)
+    data.sort(key=lambda x: x[2], reverse=True)
+    images, captions, lengths, *allcaps = zip(*data)
+
     # Merge images (from tuple of 3D tensor to 4D tensor).
     images = torch.stack(images, 0)
 
     # Merge captions (from tuple of 1D tensor to 2D tensor).
-    lengths = [len(cap) for cap in captions]
     targets = torch.zeros(len(captions), max(lengths)).long()
     for i, cap in enumerate(captions):
         end = lengths[i]
-        targets[i, :end] = cap[:end]        
-    return images, targets, lengths
+        targets[i, :end] = cap[:end]
+
+    # Convert lengths (from list to 1D tensor)
+    lengths = torch.Tensor(lengths)
+
+    return images, targets, lengths, allcaps

@@ -3,7 +3,7 @@ from models import Encoder
 from PIL import Image
 from pickle import dump
 from collections import defaultdict, Counter
-from dataset import Vocabulary
+from data import Vocabulary
 import string
 import json
 import os
@@ -80,13 +80,13 @@ def preprocess_captions(file="data/text/Flickr8k.token.txt", min_word_freq=50):
 
     # Creating vocabulary
     words = {w for w in vocab.word_freq.keys() if vocab.word_freq[w] > min_word_freq}
+    vocab.add("<pad>") #0
+    vocab.add("<start>") #1
+    vocab.add("<end>") #2
+    vocab.add("<unk>") #3
+    vocab.max_len = max_len
     for w in words:
         vocab.add(w)
-
-    vocab.add("<start>")
-    vocab.add("<end>")
-    vocab.add("<unk>")
-    vocab.add("<pad>")
 
     # Encode captions
     for key, captions in collection.items():
@@ -94,13 +94,14 @@ def preprocess_captions(file="data/text/Flickr8k.token.txt", min_word_freq=50):
             
             encoded_c = [vocab("<start>")] +\
                         [vocab.words.get(word, vocab("<unk>")) for word in c.split()] +\
-                        [vocab("<end>")] \
-                        # + [vocabulary["<pad>"]] * (max_len - len(c))
-
+                        [vocab("<end>")] 
+            captions["lengths"].append(len(encoded_c))
+            encoded_c = encoded_c + [vocab("<pad>")] * (max_len - len(c.split()))
             captions["encoded"].append(encoded_c)
             
+
     # Saving captions and vocab to file
-    with open("data/captions.json", "w") as f:
+    with open("data/captions.json", "w", encoding='utf-8') as f:
         json.dump(collection, f)
 
     vocab.save()
@@ -110,3 +111,5 @@ def setup_data():
     extract_features()
     preprocess_captions()
 
+def decode_cap(encoded_cap, vocab):
+    return [vocab.indices[idx] for idx in encoded_cap.int().numpy()]
