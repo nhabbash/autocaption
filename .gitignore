@@ -3,4 +3,4 @@ __pycache__
 .vscode
 tmp
 data/images
-data/model
+data/models

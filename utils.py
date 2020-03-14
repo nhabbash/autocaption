@@ -8,6 +8,23 @@ import string
 import json
 import os
 
+import urllib.request
+from zipfile import ZipFile 
+
+def download_dataset():
+
+    print("Downloading Flickr8k Images Dataset")
+    url = "https://github.com/jbrownlee/Datasets/releases/download/Flickr8k/Flickr8k_Dataset.zip"
+    filename, _ = urllib.request.urlretrieve(url)
+    
+    with ZipFile(filename, 'r') as zip:
+        files = [n for n in zip.namelist() 
+                   if n.startswith('Flicker8k_Dataset/')]
+        print("Extracting files in ./data/images")
+        zip.extractall(path="./data/", members = files)
+
+    os.rename("./data/Flicker8k_Dataset/", "./data/images")
+
 def extract_features(dir="data/images"):
     enc = Encoder()
     features = defaultdict()
@@ -36,15 +53,13 @@ def extract_features(dir="data/images"):
     print("Saving...")
     dump(features, open("data/features.pkl", "wb"))
         
-def preprocess_captions(file="data/text/Flickr8k.token.txt", min_word_freq=50):
+def preprocess_captions(file="data/captions/Flickr8k.token.txt"):
     f = open(file, "r")
     txt = f.read()
     f.close()
 
     # Read captions
     collection = defaultdict(lambda: defaultdict(list))
-    vocab = Vocabulary()
-    max_len = 0
 
     for line in txt.split("\n"):
         tokens = line.split()
@@ -56,11 +71,11 @@ def preprocess_captions(file="data/text/Flickr8k.token.txt", min_word_freq=50):
         image_id = image_id.split(".")[0]
         caption = " ".join(caption)
         
-        collection[image_id]["raw"].append(caption)
+        collection[image_id]["captions"].append(caption)
 
     # Preprocess captions
     for key, captions in collection.items():
-        for idx, c in enumerate(captions["raw"]):
+        for idx, c in enumerate(captions["captions"]):
 
             # Lowercasing, punctuation removal, tokenization
             c = c.lower()
@@ -70,46 +85,31 @@ def preprocess_captions(file="data/text/Flickr8k.token.txt", min_word_freq=50):
             # (Short) stopword removal (only 1-char words and words with numbers)
             c = [word for word in c if len(word)>1]
             c = [word for word in c if word.isalpha()]
-            vocab.word_freq.update(c)
 
-            # Update max_len for padding
-            if len(c) > max_len:
-                max_len = len(c)
-
-            captions["raw"][idx] = " ".join(c)
-
-    # Creating vocabulary
-    words = {w for w in vocab.word_freq.keys() if vocab.word_freq[w] > min_word_freq}
-    vocab.add("<pad>") #0
-    vocab.add("<start>") #1
-    vocab.add("<end>") #2
-    vocab.add("<unk>") #3
-    vocab.max_len = max_len
-    for w in words:
-        vocab.add(w)
-
-    # Encode captions
-    for key, captions in collection.items():
-        for idx, c in enumerate(captions["raw"]):
-            
-            encoded_c = [vocab("<start>")] +\
-                        [vocab.words.get(word, vocab("<unk>")) for word in c.split()] +\
-                        [vocab("<end>")] 
-            captions["lengths"].append(len(encoded_c))
-            encoded_c = encoded_c + [vocab("<pad>")] * (max_len - len(c.split()))
-            captions["encoded"].append(encoded_c)
-            
+            captions["captions"][idx] = " ".join(c)
+            captions["lengths"].append(len(c))
 
     # Saving captions and vocab to file
     with open("data/captions.json", "w", encoding='utf-8') as f:
         json.dump(collection, f)
-
-    vocab.save()
-
 
 def setup_data():
     extract_features()
     preprocess_captions()
 
 def decode_cap(encoded_cap, vocab):
-    return [vocab.indices[idx] for idx in encoded_cap.int().numpy()]
+    return [vocab.indices[idx] for idx in encoded_cap.cpu().int().numpy()]
+
+def get_caption(img, encoder, decoder, cfg, vocab):
+    #img = transform(img)
+    img = img.unsqueeze(0)
+    img = img.to(cfg["device"])
+    
+    # Generate a caption from the image
+    features = encoder(img)
+    samples = decoder.sample(features)
+    samples = samples[0]
+    print(samples)
+    # Convert word_ids to words
+    sentence = decode_cap(samples, vocab)
+    return sentence
