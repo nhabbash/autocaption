@@ -129,7 +129,7 @@ class CaptionDataset(Dataset):
         captions = self.captions[self.ids[idx]]
 
         return image, captions
-        
+
     def __len__(self):
         return len(self.captions)
 
@@ -142,23 +142,48 @@ class CaptionDataset(Dataset):
             path = "data/images/" + self.paths[idx]
             image = Image.open(path).convert("RGB")
 
-            # Return image and caption
-            if self.split in ["TRAIN", "VAL"]:
+            if self.split == "TRAIN":
+                # Return image and caption
                 if self.transform is not None:
                     image = self.transform(image) 
 
                 # Encoding caption
                 tokens = self.captions[self.ids[idx]][0].split()
-                caption = []
-                caption.append(self.vocab(self.vocab.start_word))
-                caption.extend([self.vocab(token) for token in tokens])
-                caption.append(self.vocab(self.vocab.end_word))
-                caption = torch.Tensor(caption).long()
+                encoded = []
+                encoded.append(self.vocab(self.vocab.start_word))
+                encoded.extend([self.vocab(token) for token in tokens])
+                encoded.append(self.vocab(self.vocab.end_word))
+                encoded = torch.Tensor(encoded).long()
 
-                return image, caption
-            
-            # Return only image for the TEST split
+                return image, encoded
+
+            elif self.split =="VAL": 
+                # Return image and all its caption for BLEU scoring
+                if self.transform is not None:
+                    image = self.transform(image) 
+
+                # Encoding caption
+                captions = self.captions[self.ids[idx]]
+
+                tokens = self.captions[self.ids[idx]][0].split()
+                encoded = []
+                encoded.append(self.vocab(self.vocab.start_word))
+                encoded.extend([self.vocab(token) for token in tokens])
+                encoded.append(self.vocab(self.vocab.end_word))
+                encoded = torch.Tensor(encoded).long()
+
+                encoded_captions = []
+                for cap in captions:
+                    en = []
+                    en.append(self.vocab(self.vocab.start_word))
+                    en.extend([self.vocab(token) for token in cap])
+                    en.append(self.vocab(self.vocab.end_word))
+                    encoded_captions.append(en)
+
+                return image, encoded, encoded_captions
+                
             else:
+                 # Return only image for the TEST split
                 orig_image = np.array(image)
                 if self.transform is not None:
                     image = self.transform(image) 
