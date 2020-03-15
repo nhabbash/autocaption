@@ -1,6 +1,7 @@
 import time
 import os
 import torch
+import math
 import numpy as np
 from torch import nn
 from torch.utils.data import Dataset, sampler
@@ -19,7 +20,7 @@ standard_cfg = {
         "lr" : 0.001,
         "momentum": 0.01,
         "hidden_size": 512,
-        "embed_size": 256,
+        "embed_size": 512,
         "n_layers": 1,
         "dropout": 0.5,
         "seed" : 0,
@@ -107,7 +108,7 @@ def train(loader, encoder, decoder, criterion, opt, epoch, cfg, start_step=1, st
     decoder.train()
 
     start = time.time()
-    total_steps = len(loader)
+    total_steps = math.ceil(len(loader.dataset)/loader.batch_sampler.batch_size)
     total_loss = start_loss
     
     for step in range(start_step, total_steps+1):
@@ -154,7 +155,7 @@ def validate(loader, encoder, decoder, criterion, epoch, cfg, start_step=1, star
     decoder.eval()
     
     start = time.time()
-    total_steps = len(loader)
+    total_steps = math.ceil(len(loader.dataset)/loader.batch_sampler.batch_size)
     total_loss = start_loss
     total_bleu = start_bleu
 

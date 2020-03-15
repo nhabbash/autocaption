@@ -25,7 +25,7 @@ class Encoder(nn.Module):
         out = self.bn(out)
         return out
 
-    def fine_tune(self, fine_tune=False):
+    def fine_tune(self, fine_tune=True):
         for p in self.resnet.parameters():
             p.requires_grad = False
 
@@ -58,15 +58,14 @@ class Decoder(nn.Module):
     def sample(self, inputs, states=None, max_len=20):
         # Caption generation using greedy search
         sample = []
-        input = features.unsqueeze(1)
         for i in range(max_len):
-            hiddens, states = self.lstm(input, states)
+            hiddens, states = self.lstm(inputs, states)
             out = self.linear(hiddens.squeeze(1))
             # Most likely encoded word
             predicted = out.argmax(1)
             sample.append(predicted.item())
-            input = self.embed(predicted)
-            input = input.unsqueeze(1)
+            inputs = self.embed(predicted)
+            inputs = inputs.unsqueeze(1)
         return sample
 
     def sample_beam_search(self, inputs, states=None, max_len=20, beam_width=5):

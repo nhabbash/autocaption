@@ -97,19 +97,13 @@ def setup_data():
     extract_features()
     preprocess_captions()
 
-def decode_cap(encoded_cap, vocab):
-    return [vocab.indices[idx] for idx in encoded_cap.cpu().int().numpy()]
+def decode_cap(encoded_cap, v):
+    return " ".join([v.idx2word[idx] for idx in encoded_cap if idx not in [v(v.start_word), v(v.end_word), v(v.pad_word)]])
 
-def get_caption(img, encoder, decoder, cfg, vocab):
-    #img = transform(img)
-    img = img.unsqueeze(0)
-    img = img.to(cfg["device"])
-    
+def get_caption(img, encoder, decoder, vocab):
     # Generate a caption from the image
-    features = encoder(img)
-    samples = decoder.sample(features)
-    samples = samples[0]
-    print(samples)
+    features = encoder(img).unsqueeze(1)
+    sample = decoder.sample(features)
     # Convert word_ids to words
-    sentence = decode_cap(samples, vocab)
+    sentence = decode_cap(sample, vocab)
     return sentence
