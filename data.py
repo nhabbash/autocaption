@@ -1,26 +1,28 @@
-import torch
-import torchvision.transforms as transforms
-from torch.utils.data import Dataset, sampler
 import pandas as pd
 import numpy as np
 import os.path
 import string
 import json
-from PIL import Image
 from collections import defaultdict, Counter
+import torch
+import torchvision.transforms as transforms
+from torch.utils.data import Dataset, sampler
+from torch.nn.utils.rnn import pad_sequence
+from PIL import Image
 
 class Vocabulary(object):
     def __init__(self,
                  rebuild_vocab=False,
                  vocab_file="./data/vocab.json",
                  captions_file="./data/captions.json",
-                 freq_threshold=10):
+                 freq_threshold=5):
 
         self.rebuild_vocab = rebuild_vocab
         self.vocab_file = vocab_file
         self.captions_file = captions_file
         self.freq_threshold = freq_threshold
 
+        self.pad_word = "<pad>"
         self.start_word = "<start>"
         self.end_word = "<end>"
         self.unk_word = "<unk>"
@@ -57,9 +59,10 @@ class Vocabulary(object):
 
             # Creating vocabulary
             words = {w for w in self.words_freq.keys() if self.words_freq[w] > self.freq_threshold}
-            self.add(self.unk_word)   #0
-            self.add(self.start_word) #1
-            self.add(self.end_word)   #2
+            self.add(self.pad_word)   #0
+            self.add(self.unk_word)   #1
+            self.add(self.start_word) #2
+            self.add(self.end_word)   #3
 
             for w in words:
                 self.add(w)
@@ -174,14 +177,18 @@ class CaptionDataset(Dataset):
 
                 encoded_captions = []
                 for cap in captions:
+                    cap = cap.split()
                     en = []
                     en.append(self.vocab(self.vocab.start_word))
                     en.extend([self.vocab(token) for token in cap])
                     en.append(self.vocab(self.vocab.end_word))
+                    # Padding to max length for batching TODO: find max length of all captions
+                    en.extend([self.vocab(self.vocab.pad_word) for i in range(50-len(en))])
                     encoded_captions.append(en)
+                encoded_captions = torch.Tensor(encoded_captions).long()
 
                 return image, encoded, encoded_captions
-                
+
             else:
                  # Return only image for the TEST split
                 orig_image = np.array(image)
@@ -199,20 +206,23 @@ class CaptionDataset(Dataset):
         return indices
 
 def get_loader(split, batch_size, n_workers=0):
-    transform = transforms.Compose([
-    transforms.Resize(256),
-    transforms.RandomCrop(224),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(), 
-    transforms.Normalize((0.485, 0.456, 0.406), 
-                         (0.229, 0.224, 0.225))])
+    transform_train = transforms.Compose([
+                        transforms.Resize(256),
+                        transforms.RandomCrop(224),
+                        transforms.RandomHorizontalFlip(),
+                        transforms.ToTensor(), 
+                        transforms.Normalize((0.485, 0.456, 0.406), 
+                                            (0.229, 0.224, 0.225))])
 
-    transform_nonorm = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor()])
+    transform_val = transforms.Compose([
+                        transforms.Resize(256),
+                        transforms.CenterCrop(224),
+                        transforms.ToTensor(), 
+                        transforms.Normalize((0.485, 0.456, 0.406), 
+                                            (0.229, 0.224, 0.225))])
 
     if split == "TRAIN":
-        dataset = CaptionDataset(split="TRAIN", transform=transform)
+        dataset = CaptionDataset(split="TRAIN", transform=transform_train)
         # Random sample of a caption length
         indices = dataset.get_indices()
         initial_sampler = sampler.SubsetRandomSampler(indices=indices)
@@ -222,7 +232,7 @@ def get_loader(split, batch_size, n_workers=0):
                                             batch_sampler=batch_sampler)
 
     elif split == "VAL":                                        
-        dataset = CaptionDataset(split="VAL", transform=transform)
+        dataset = CaptionDataset(split="VAL", transform=transform_val)
          # Random sample of a caption length
         indices = dataset.get_indices()
         initial_sampler = sampler.SubsetRandomSampler(indices=indices)
@@ -232,10 +242,12 @@ def get_loader(split, batch_size, n_workers=0):
                                             num_workers=n_workers,
                                             batch_sampler=batch_sampler)
     elif split == "TEST":                                
-        dataset = CaptionDataset(split="TEST",transform=transform)
+        dataset = CaptionDataset(split="TEST",transform=transform_val)
+        indices = dataset.get_indices()
+        initial_sampler = sampler.SubsetRandomSampler(indices=indices)
+        batch_sampler = sampler.BatchSampler(sampler=initial_sampler, batch_size=batch_size, drop_last=False)
         loader = torch.utils.data.DataLoader(dataset,
-                                            batch_size=batch_size,
-                                            shuffle=False,
-                                            num_workers = n_workers)
+                                            num_workers=n_workers,
+                                            batch_sampler=batch_sampler)
 
     return loader

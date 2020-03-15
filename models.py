@@ -1,16 +1,13 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 class Encoder(nn.Module):
     """
     Pretrained CNN
     """
-
     def __init__(self, embed_size):
         super(Encoder, self).__init__()
-        
         # Load pretrained ResNet
         resnet = models.resnet50(pretrained=True)
 
@@ -42,7 +39,6 @@ class Decoder(nn.Module):
     """
     LSTM RNN
     """
-
     def __init__(self, embed_size, hidden_size, vocab_size, num_layers=1, dropout=0.1):
         super(Decoder, self).__init__()
         self.embed = nn.Embedding(vocab_size, embed_size)
@@ -52,7 +48,7 @@ class Decoder(nn.Module):
 
     def forward(self, features, captions):
         # Forward pass, out=(batch_size, captions.shape[1], vocab_size)
-        captions = captions[:,:-1]
+        captions = captions[:,:-1] 
         embeddings = self.embed(captions)
         inputs = torch.cat((features.unsqueeze(1), embeddings), 1)
         hiddens, _ = self.lstm(inputs)
