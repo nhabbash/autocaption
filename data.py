@@ -3,10 +3,11 @@ import numpy as np
 import os.path
 import string
 import json
+import math
 from collections import defaultdict, Counter
 import torch
 import torchvision.transforms as transforms
-from torch.utils.data import Dataset, sampler
+from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 from PIL import Image
 
@@ -84,7 +85,7 @@ class Vocabulary(object):
 
 class CaptionDataset(Dataset):
 
-    def __init__(self, split, precomp_features=False, transform=None):
+    def __init__(self, split, batch_size, precomp_features=False, transform=None):
         """
         :param split: split, one of 'TRAIN', 'VAL', or 'TEST'
         :param precomp_features: whether to use precomputed features or full images
@@ -93,6 +94,7 @@ class CaptionDataset(Dataset):
         self.vocab = Vocabulary()
         self.transform = transform
         self.precomp_features = precomp_features
+        self.batch_size = batch_size
 
         self.split = split
         split_dataset = {
@@ -124,7 +126,8 @@ class CaptionDataset(Dataset):
                 # To consider every caption for each image
                 #for i, length in enumerate(v["lengths"]):
                 #    self.caption_lengths[length].append((k, i))
-                self.caption_lengths[v["lengths"][0]].append(k)
+                if k in self.ids:
+                    self.caption_lengths[v["lengths"][0]].append(k)
 
     def get_raw_item(self, idx):
         path = "data/images/" + self.paths[idx]
@@ -134,7 +137,7 @@ class CaptionDataset(Dataset):
         return image, captions
 
     def __len__(self):
-        return len(self.captions)
+        return len(self.ids)
 
     def __getitem__(self, idx):
 
@@ -157,10 +160,9 @@ class CaptionDataset(Dataset):
                 encoded.extend([self.vocab(token) for token in tokens])
                 encoded.append(self.vocab(self.vocab.end_word))
                 encoded = torch.Tensor(encoded).long()
-
                 return image, encoded
 
-            elif self.split =="VAL": 
+            elif self.split == "VAL": 
                 # Return image and all its caption for BLEU scoring
                 if self.transform is not None:
                     image = self.transform(image) 
@@ -201,8 +203,8 @@ class CaptionDataset(Dataset):
         lengths_prob = [k for k, v in self.caption_lengths.items() for repetitions in range(len(v))]
         sel_length = np.random.choice(lengths_prob)
         ids = self.caption_lengths[sel_length]
-
         indices = [self.ids.index(e) for e in ids if e in self.ids]
+        indices = list(np.random.choice(indices, size=self.batch_size))
         return indices
 
 def get_loader(split, batch_size, n_workers=0):
@@ -222,32 +224,20 @@ def get_loader(split, batch_size, n_workers=0):
                                             (0.229, 0.224, 0.225))])
 
     if split == "TRAIN":
-        dataset = CaptionDataset(split="TRAIN", transform=transform_train)
-        # Random sample of a caption length
-        indices = dataset.get_indices()
-        initial_sampler = sampler.SubsetRandomSampler(indices=indices)
-        batch_sampler = sampler.BatchSampler(sampler=initial_sampler, batch_size=batch_size, drop_last=False)
+        dataset = CaptionDataset(split="TRAIN", transform=transform_train, batch_size=batch_size)
         loader = torch.utils.data.DataLoader(dataset,
-                                            num_workers=n_workers,
-                                            batch_sampler=batch_sampler)
+                                            batch_size=batch_size,
+                                            num_workers=n_workers)
 
     elif split == "VAL":                                        
-        dataset = CaptionDataset(split="VAL", transform=transform_val)
-         # Random sample of a caption length
-        indices = dataset.get_indices()
-        initial_sampler = sampler.SubsetRandomSampler(indices=indices)
-        batch_sampler = sampler.BatchSampler(sampler=initial_sampler, batch_size=batch_size, drop_last=False)
-       
+        dataset = CaptionDataset(split="VAL", transform=transform_val, batch_size=batch_size)
         loader = torch.utils.data.DataLoader(dataset,
-                                            num_workers=n_workers,
-                                            batch_sampler=batch_sampler)
+                                            batch_size=batch_size,
+                                            num_workers=n_workers)
     elif split == "TEST":                                
-        dataset = CaptionDataset(split="TEST",transform=transform_val)
-        indices = dataset.get_indices()
-        initial_sampler = sampler.SubsetRandomSampler(indices=indices)
-        batch_sampler = sampler.BatchSampler(sampler=initial_sampler, batch_size=batch_size, drop_last=False)
+        dataset = CaptionDataset(split="TEST",transform=transform_val, batch_size=batch_size)
         loader = torch.utils.data.DataLoader(dataset,
-                                            num_workers=n_workers,
-                                            batch_sampler=batch_sampler)
+                                            batch_size=batch_size,
+                                            num_workers=n_workers)
 
     return loader
