@@ -3,11 +3,10 @@ import numpy as np
 import os.path
 import string
 import json
-from collections import defaultdict, Counter
 import torch
+from torch.utils.data import Dataset, DataLoader, sampler
 import torchvision.transforms as transforms
-from torch.utils.data import Dataset
-from torch.nn.utils.rnn import pad_sequence
+from collections import defaultdict, Counter
 from PIL import Image
 
 class Vocabulary(object):
@@ -53,9 +52,8 @@ class Vocabulary(object):
         if os.path.exists(self.captions_file):
             with open(self.captions_file, "r") as f:
                 collection = json.load(f)
-                for _, captions in collection.items():
-                    for caption in captions["captions"]:
-                        self.words_freq.update(caption.split())
+                for caption, _ in collection:
+                    self.words_freq.update(caption.split())
 
             # Creating vocabulary
             words = {w for w in self.words_freq.keys() if self.words_freq[w] > self.freq_threshold}
@@ -84,7 +82,7 @@ class Vocabulary(object):
 
 class CaptionDataset(Dataset):
 
-    def __init__(self, split, batch_size, precomp_features=False, transform=None):
+    def __init__(self, split, batch_size, transform=None):
         """
         :param split: split, one of 'TRAIN', 'VAL', or 'TEST'
         :param precomp_features: whether to use precomputed features or full images
@@ -92,121 +90,107 @@ class CaptionDataset(Dataset):
         """
         self.vocab = Vocabulary()
         self.transform = transform
-        self.precomp_features = precomp_features
         self.batch_size = batch_size
 
         self.split = split
         split_dataset = {
             "TRAIN": "data/captions/Flickr_8k.trainImages.txt",
             "VAL":   "data/captions/Flickr_8k.devImages.txt", 
-            "TEST":  "data/captions/Flickr_8k.testImages.txt"
+            "TEST":  "data/captions/Flickr_8k.testImages.txt",
+            "COMPLETE": "",
         }
         assert self.split in split_dataset.keys()
 
         # Get paths and image ids
-        self.paths = pd.read_csv(split_dataset[self.split], sep="\n", squeeze=True)
-        self.paths.dropna()
-        self.ids = [x.split('.')[0] for x in self.paths]
-
-        # Use precomputed features if asked to
-        if self.precomp_features:
-            features = load(open("data/features.pkl", 'rb'))
-            self.features = {k: features[k] for k in self.frame}
-        else:
-            pass
+        if self.split != "COMPLETE":
+            paths = pd.read_csv(split_dataset[self.split], sep="\n", squeeze=True)
+            paths.dropna()
+            self.ids = [x.split('.')[0] for x in paths]
         
         # Get captions and lengths
         with open("data/captions.json", "r", encoding='utf-8') as f:
-            captions = json.load(f)
-            self.captions = {k: v["captions"] for k, v in captions.items() if k in self.ids}
-
-            self.caption_lengths = defaultdict(list)
-            for k, v in captions.items():
-                # To consider every caption for each image
-                #for i, length in enumerate(v["lengths"]):
-                #    self.caption_lengths[length].append((k, i))
-                if k in self.ids:
-                    self.caption_lengths[v["lengths"][0]].append(k)
+            self.captions = json.load(f)
+            if self.split != "COMPLETE":
+                self.captions = [element for element in self.captions if element[1] in self.ids]
+            self.caption_lengths = [len(cap.split()) for cap, img_id in self.captions]
 
     def get_raw_item(self, idx):
-        path = "data/images/" + self.paths[idx]
+        caption, image_id = self.captions[idx]
+        path = "./data/images/" + image_id + ".jpg"
         image = Image.open(path).convert("RGB")
-        captions = self.captions[self.ids[idx]]
 
-        return image, captions
+        return image, caption
 
     def __len__(self):
         return len(self.ids)
 
     def __getitem__(self, idx):
 
-        if self.precomp_features:
-            pass
-            # TODO Using precomputed features
+        caption, image_id = self.captions[idx]
+
+        path = "./data/images/" + image_id + ".jpg"
+        image = Image.open(path).convert("RGB")
+
+        if self.split in ["TRAIN", "COMPLETE"]:
+            # Return image and caption
+            if self.transform is not None:
+                image = self.transform(image) 
+
+            # Encoding caption
+            tokens = caption.split()
+            encoded = []
+            encoded.append(self.vocab(self.vocab.start_word))
+            encoded.extend([self.vocab(token) for token in tokens])
+            encoded.append(self.vocab(self.vocab.end_word))
+            encoded = torch.Tensor(encoded).long()
+            return image, encoded
+
+        elif self.split == "VAL": 
+            # Return image and all its caption for BLEU scoring
+            if self.transform is not None:
+                image = self.transform(image) 
+
+            # Encoding caption
+            captions = [cap for cap, i_id in self.captions if image_id == i_id]
+
+            tokens = caption.split()
+            encoded = []
+            encoded.append(self.vocab(self.vocab.start_word))
+            encoded.extend([self.vocab(token) for token in tokens])
+            encoded.append(self.vocab(self.vocab.end_word))
+            encoded = torch.Tensor(encoded).long()
+
+            encoded_captions = []
+            for cap in captions:
+                cap = cap.split()
+                en = []
+                en.append(self.vocab(self.vocab.start_word))
+                en.extend([self.vocab(token) for token in cap])
+                en.append(self.vocab(self.vocab.end_word))
+                # Padding to max length for batching TODO: find max length of all captions
+                en = en + [self.vocab(self.vocab.pad_word)] * (max(self.caption_lengths)+2-len(en))
+                encoded_captions.append(en)
+
+            encoded_captions = torch.Tensor(encoded_captions).long()
+            return image, encoded, encoded_captions
+
         else:
-            path = "data/images/" + self.paths[idx]
-            image = Image.open(path).convert("RGB")
+            # Return only image for the TEST split
+            orig_image = np.array(image)
+            if self.transform is not None:
+                image = self.transform(image) 
 
-            if self.split == "TRAIN":
-                # Return image and caption
-                if self.transform is not None:
-                    image = self.transform(image) 
-
-                # Encoding caption
-                tokens = self.captions[self.ids[idx]][0].split()
-                encoded = []
-                encoded.append(self.vocab(self.vocab.start_word))
-                encoded.extend([self.vocab(token) for token in tokens])
-                encoded.append(self.vocab(self.vocab.end_word))
-                encoded = torch.Tensor(encoded).long()
-                return image, encoded
-
-            elif self.split == "VAL": 
-                # Return image and all its caption for BLEU scoring
-                if self.transform is not None:
-                    image = self.transform(image) 
-
-                # Encoding caption
-                captions = self.captions[self.ids[idx]]
-
-                tokens = self.captions[self.ids[idx]][0].split()
-                encoded = []
-                encoded.append(self.vocab(self.vocab.start_word))
-                encoded.extend([self.vocab(token) for token in tokens])
-                encoded.append(self.vocab(self.vocab.end_word))
-                encoded = torch.Tensor(encoded).long()
-
-                encoded_captions = []
-                for cap in captions:
-                    cap = cap.split()
-                    en = []
-                    en.append(self.vocab(self.vocab.start_word))
-                    en.extend([self.vocab(token) for token in cap])
-                    en.append(self.vocab(self.vocab.end_word))
-                    # Padding to max length for batching TODO: find max length of all captions
-                    en.extend([self.vocab(self.vocab.pad_word) for i in range(50-len(en))])
-                    encoded_captions.append(en)
-                encoded_captions = torch.Tensor(encoded_captions).long()
-
-                return image, encoded, encoded_captions
-
-            else:
-                 # Return only image for the TEST split
-                orig_image = np.array(image)
-                if self.transform is not None:
-                    image = self.transform(image) 
-
-            return orig_image, image
+        return orig_image, image
     
-    def get_indices(self):
-        lengths_prob = [k for k, v in self.caption_lengths.items() for repetitions in range(len(v))]
-        sel_length = np.random.choice(lengths_prob)
-        ids = self.caption_lengths[sel_length]
-        indices = [self.ids.index(e) for e in ids if e in self.ids]
+    def get_indices(self, lenght=False):
+        sel_length = np.random.choice(self.caption_lengths)
+        indices = np.where(self.caption_lengths == sel_length)[0]
         indices = list(np.random.choice(indices, size=self.batch_size))
+        if lenght:
+            return indices, sel_length
         return indices
 
-def get_loader(split, batch_size, n_workers=0):
+def get_loader(split, batch_size, n_workers=0, transform=0):
     transform_train = transforms.Compose([
                         transforms.Resize(256),
                         transforms.RandomCrop(224),
@@ -224,19 +208,29 @@ def get_loader(split, batch_size, n_workers=0):
 
     if split == "TRAIN":
         dataset = CaptionDataset(split="TRAIN", transform=transform_train, batch_size=batch_size)
-        loader = torch.utils.data.DataLoader(dataset,
-                                            batch_size=batch_size,
-                                            num_workers=n_workers)
-
+        indices = dataset.get_indices()
+        init_sampler = sampler.SubsetRandomSampler(indices=indices)
+        length_sampler = sampler.BatchSampler(sampler=init_sampler, batch_size=dataset.batch_size, drop_last=False)
+        loader = DataLoader(dataset, batch_sampler=length_sampler, num_workers=n_workers)
     elif split == "VAL":                                        
         dataset = CaptionDataset(split="VAL", transform=transform_val, batch_size=batch_size)
-        loader = torch.utils.data.DataLoader(dataset,
-                                            batch_size=batch_size,
-                                            num_workers=n_workers)
+        indices = dataset.get_indices()
+        init_sampler = sampler.SubsetRandomSampler(indices=indices)
+        length_sampler = sampler.BatchSampler(sampler=init_sampler, batch_size=dataset.batch_size, drop_last=False)
+        loader = DataLoader(dataset, batch_sampler=length_sampler, num_workers=n_workers)
     elif split == "TEST":                                
         dataset = CaptionDataset(split="TEST",transform=transform_val, batch_size=batch_size)
-        loader = torch.utils.data.DataLoader(dataset,
-                                            batch_size=batch_size,
-                                            num_workers=n_workers)
+        loader = DataLoader(dataset, batch_size=1, num_workers=n_workers)
+    elif split == "COMPLETE":
+        if transform == 0:
+            transform = transform_train
+        else:
+            transform = transform_val
+
+        dataset = CaptionDataset(split="COMPLETE", transform=transform, batch_size=batch_size)
+        indices = dataset.get_indices()
+        init_sampler = sampler.SubsetRandomSampler(indices=indices)
+        length_sampler = sampler.BatchSampler(sampler=init_sampler, batch_size=dataset.batch_size, drop_last=False)
+    loader = DataLoader(dataset, batch_sampler=length_sampler, num_workers=n_workers)
 
     return loader

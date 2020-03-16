@@ -24,6 +24,7 @@ def download_dataset():
         zip.extractall(path="./data/", members = files)
 
     os.rename("./data/Flicker8k_Dataset/", "./data/images")
+    os.rename("./data/text/", "./data/captions")
 
 def extract_features(dir="data/images"):
     enc = Encoder()
@@ -59,7 +60,7 @@ def preprocess_captions(file="data/captions/Flickr8k.token.txt"):
     f.close()
 
     # Read captions
-    collection = defaultdict(lambda: defaultdict(list))
+    collection = []
 
     for line in txt.split("\n"):
         tokens = line.split()
@@ -70,24 +71,19 @@ def preprocess_captions(file="data/captions/Flickr8k.token.txt"):
         image_id, caption = tokens[0], tokens[1:]
         image_id = image_id.split(".")[0]
         caption = " ".join(caption)
+
+        # Lowercasing, punctuation removal, tokenization
+        caption = caption.lower()
+        caption = caption.translate(str.maketrans("", "", string.punctuation))
+        caption = caption.split()
         
-        collection[image_id]["captions"].append(caption)
-
-    # Preprocess captions
-    for key, captions in collection.items():
-        for idx, c in enumerate(captions["captions"]):
-
-            # Lowercasing, punctuation removal, tokenization
-            c = c.lower()
-            c = c.translate(str.maketrans("", "", string.punctuation))
-            c = c.split()
-           
-            # (Short) stopword removal (only 1-char words and words with numbers)
-            c = [word for word in c if len(word)>1]
-            c = [word for word in c if word.isalpha()]
-
-            captions["captions"][idx] = " ".join(c)
-            captions["lengths"].append(len(c))
+        # (Short) stopword removal (only 1-char words and words with numbers)
+        caption = [word for word in caption if len(word)>1]
+        caption = [word for word in caption if word.isalpha()]
+        
+        if len(caption) > 1:
+            caption = " ".join(caption)
+            collection.append((caption, image_id))
 
     # Saving captions and vocab to file
     with open("data/captions.json", "w", encoding='utf-8') as f:
