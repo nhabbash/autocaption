@@ -102,10 +102,9 @@ class CaptionDataset(Dataset):
         assert self.split in split_dataset.keys()
 
         # Get paths and image ids
-        if self.split != "COMPLETE":
-            paths = pd.read_csv(split_dataset[self.split], sep="\n", squeeze=True)
-            paths.dropna()
-            self.ids = [x.split('.')[0] for x in paths]
+        paths = pd.read_csv(split_dataset[self.split], sep="\n", squeeze=True)
+        paths.dropna()
+        self.ids = [x.split('.')[0] for x in paths]
         
         # Get captions and lengths
         with open("data/captions.json", "r", encoding='utf-8') as f:
@@ -122,16 +121,18 @@ class CaptionDataset(Dataset):
         return image, caption
 
     def __len__(self):
-        return len(self.ids)
+        if self.split == "TEST":
+            return len(self.ids)
+        return len(self.captions)
 
     def __getitem__(self, idx):
 
-        caption, image_id = self.captions[idx]
-
-        path = "./data/images/" + image_id + ".jpg"
-        image = Image.open(path).convert("RGB")
-
         if self.split in ["TRAIN", "COMPLETE"]:
+            caption, image_id = self.captions[idx]
+
+            path = "./data/images/" + image_id + ".jpg"
+            image = Image.open(path).convert("RGB")
+
             # Return image and caption
             if self.transform is not None:
                 image = self.transform(image) 
@@ -146,6 +147,11 @@ class CaptionDataset(Dataset):
             return image, encoded
 
         elif self.split == "VAL": 
+            caption, image_id = self.captions[idx]
+
+            path = "./data/images/" + image_id + ".jpg"
+            image = Image.open(path).convert("RGB")
+
             # Return image and all its caption for BLEU scoring
             if self.transform is not None:
                 image = self.transform(image) 
@@ -175,6 +181,10 @@ class CaptionDataset(Dataset):
             return image, encoded, encoded_captions
 
         else:
+            image_id = self.ids[idx]
+            
+            path = "./data/images/" + image_id + ".jpg"
+            image = Image.open(path).convert("RGB")
             # Return only image for the TEST split
             orig_image = np.array(image)
             if self.transform is not None:
@@ -231,6 +241,6 @@ def get_loader(split, batch_size, n_workers=0, transform=0):
         indices = dataset.get_indices()
         init_sampler = sampler.SubsetRandomSampler(indices=indices)
         length_sampler = sampler.BatchSampler(sampler=init_sampler, batch_size=dataset.batch_size, drop_last=False)
-    loader = DataLoader(dataset, batch_sampler=length_sampler, num_workers=n_workers)
+        loader = DataLoader(dataset, batch_sampler=length_sampler, num_workers=n_workers)
 
     return loader

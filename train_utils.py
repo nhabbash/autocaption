@@ -73,20 +73,13 @@ def train_models(cfg=standard_cfg):
             best_bleu = val_bleu
             print("Saving checkpoint...")
             filename = os.path.join("./data/models", "best-model.ckpt")
-            torch.save({"encoder": encoder.state_dict(),
-                        "decoder": decoder.state_dict(),
-                        "optimizer": optimizer.state_dict(),
-                        "train_losses": train_losses,
-                        "val_losses": val_losses,
-                        "best_bleu": best_bleu,
-                        "val_bleus": val_bleus,
-                        "epoch": epoch
-                    }, filename)
         else:
             print("Validation BLEU did not improve")
             print("Saving checkpoint...")
             filename = os.path.join("./data/models", "model-{}.ckpt".format(epoch))
-            torch.save({"encoder": encoder.state_dict(),
+        print ("======> Epoch [%d/%d] runtime %ds\n\n" % (epoch, cfg["num_epochs"], time.time() - start))
+
+        torch.save({"encoder": encoder.state_dict(),
                         "decoder": decoder.state_dict(),
                         "optimizer": optimizer.state_dict(),
                         "train_losses": train_losses,
@@ -95,7 +88,6 @@ def train_models(cfg=standard_cfg):
                         "val_bleus": val_bleus,
                         "epoch": epoch
                     }, filename)
-        print ("======> Epoch [%d/%d] runtime %ds\n\n" % (epoch, cfg["num_epochs"], time.time() - start))
 
         if epoch > 6:
             if early_stopping(val_bleus):
@@ -139,7 +131,7 @@ def train(loader, encoder, decoder, criterion, opt, epoch, cfg, start_step=1, st
 
         if step % SAVE_FREQ == 0:
             print("Saving checkpoint...")
-            filename = os.path.join("./data/models/checkpoints/train-model-{}-{}.ckpt".format(epoch, step))
+            filename = os.path.join("./data/models/checkpoints/train-model.ckpt".format(epoch, step))
             torch.save({"encoder": encoder.state_dict(),
                         "decoder": decoder.state_dict(),
                         "optimizer" : opt.state_dict(),
@@ -149,7 +141,7 @@ def train(loader, encoder, decoder, criterion, opt, epoch, cfg, start_step=1, st
                     }, filename)
 
     return total_loss/total_steps
-            
+
 def validate(loader, encoder, decoder, criterion, epoch, cfg, start_step=1, start_loss=0.0, start_bleu=0.0):
     encoder.eval()
     decoder.eval()
@@ -193,7 +185,7 @@ def validate(loader, encoder, decoder, criterion, epoch, cfg, start_step=1, star
 
             if step % SAVE_FREQ == 0:
                 print("Saving checkpoint...")
-                filename = os.path.join("./data/models/checkpoints/val-model-{}-{}.ckpt".format(epoch))
+                filename = os.path.join("./data/models/checkpoints/val-model.ckpt".format(epoch))
                 torch.save({"encoder": encoder.state_dict(),
                             "decoder": decoder.state_dict(),
                             "total_loss": total_loss,
