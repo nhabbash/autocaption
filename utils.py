@@ -24,7 +24,6 @@ def download_dataset():
         zip.extractall(path="./data/", members = files)
 
     os.rename("./data/Flicker8k_Dataset/", "./data/images")
-    os.rename("./data/text/", "./data/captions")
 
 def extract_features(dir="data/images"):
     enc = Encoder()

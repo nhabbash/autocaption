@@ -6,16 +6,16 @@ class Encoder(nn.Module):
     """
     Pretrained CNN
     """
-    def __init__(self, embed_size):
+    def __init__(self, embed_size, momentum):
         super(Encoder, self).__init__()
         # Load pretrained ResNet
-        resnet = models.resnet50(pretrained=True)
+        resnet = models.resnet101(pretrained=True)
 
         # Delete the last FC and pooling layers
         modules = list(resnet.children())[:-1]
         self.resnet = nn.Sequential(*modules)
         self.embed = nn.Linear(resnet.fc.in_features, embed_size)
-        self.bn = nn.BatchNorm1d(embed_size, momentum=0.01)
+        self.bn = nn.BatchNorm1d(embed_size, momentum=momentum)
         self.fine_tune()
 
     def forward(self, images):
@@ -29,8 +29,8 @@ class Encoder(nn.Module):
         for p in self.resnet.parameters():
             p.requires_grad = False
 
-        # Only fine-tune the last 2 convolutions
-        for c in list(self.resnet.children())[7:]:
+        # Only fine-tune convolutional blocks 2 through 4
+        for c in list(self.resnet.children())[5:]:
             for p in c.parameters():
                 p.requires_grad = fine_tune
 
