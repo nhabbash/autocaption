@@ -11,11 +11,11 @@ from PIL import Image
 
 class Vocabulary(object):
     def __init__(self,
+                 freq_threshold,
                  rebuild_vocab=False,
                  vocab_file="./data/vocab.json",
                  captions_file="./data/captions.json",
-                 freq_threshold=5):
-
+                 ):
         self.rebuild_vocab = rebuild_vocab
         self.vocab_file = vocab_file
         self.captions_file = captions_file
@@ -82,13 +82,13 @@ class Vocabulary(object):
 
 class CaptionDataset(Dataset):
 
-    def __init__(self, split, batch_size, transform=None):
+    def __init__(self, split, batch_size, freq_threshold=5, transform=None):
         """
         :param split: split, one of 'TRAIN', 'VAL', or 'TEST'
         :param precomp_features: whether to use precomputed features or full images
         :param transform: image transform pipeline
         """
-        self.vocab = Vocabulary()
+        self.vocab = Vocabulary(freq_threshold=freq_threshold)
         self.transform = transform
         self.batch_size = batch_size
 
@@ -102,12 +102,13 @@ class CaptionDataset(Dataset):
         assert self.split in split_dataset.keys()
 
         # Get paths and image ids
-        paths = pd.read_csv(split_dataset[self.split], sep="\n", squeeze=True)
-        paths.dropna()
-        self.ids = [x.split('.')[0] for x in paths]
+        if self.split!="COMPLETE":
+            paths = pd.read_csv(split_dataset[self.split], sep="\n", squeeze=True)
+            paths.dropna()
+            self.ids = [x.split('.')[0] for x in paths]
         
         # Get captions and lengths
-        with open("data/captions.json", "r", encoding='utf-8') as f:
+        with open("./data/captions.json", "r", encoding='utf-8') as f:
             self.captions = json.load(f)
             if self.split != "COMPLETE":
                 self.captions = [element for element in self.captions if element[1] in self.ids]
@@ -126,45 +127,36 @@ class CaptionDataset(Dataset):
         return len(self.captions)
 
     def __getitem__(self, idx):
+        
+        caption = None
+        if self.split == "TEST":
+            image_id = self.ids[idx]
+        else:
+            caption, image_id = self.captions[idx]
+
+        path = "./data/images/" + image_id + ".jpg"
+        orig_image = Image.open(path).convert("RGB")
+        
+        # Return image and caption
+        if self.transform is not None:
+            image = self.transform(orig_image) 
+
+        # Encoding caption
+        if caption:
+            tokens = caption.split()
+            encoded = []
+            encoded.append(self.vocab(self.vocab.start_word))
+            encoded.extend([self.vocab(token) for token in tokens])
+            encoded.append(self.vocab(self.vocab.end_word))
+            encoded = torch.Tensor(encoded).long()
 
         if self.split in ["TRAIN", "COMPLETE"]:
-            caption, image_id = self.captions[idx]
-
-            path = "./data/images/" + image_id + ".jpg"
-            image = Image.open(path).convert("RGB")
-
-            # Return image and caption
-            if self.transform is not None:
-                image = self.transform(image) 
-
-            # Encoding caption
-            tokens = caption.split()
-            encoded = []
-            encoded.append(self.vocab(self.vocab.start_word))
-            encoded.extend([self.vocab(token) for token in tokens])
-            encoded.append(self.vocab(self.vocab.end_word))
-            encoded = torch.Tensor(encoded).long()
             return image, encoded
 
-        elif self.split == "VAL": 
-            caption, image_id = self.captions[idx]
+        elif self.split in ["VAL", "TEST"]: 
 
-            path = "./data/images/" + image_id + ".jpg"
-            image = Image.open(path).convert("RGB")
-
-            # Return image and all its caption for BLEU scoring
-            if self.transform is not None:
-                image = self.transform(image) 
-
-            # Encoding caption
+            # Encoding all the image's caption
             captions = [cap for cap, i_id in self.captions if image_id == i_id]
-
-            tokens = caption.split()
-            encoded = []
-            encoded.append(self.vocab(self.vocab.start_word))
-            encoded.extend([self.vocab(token) for token in tokens])
-            encoded.append(self.vocab(self.vocab.end_word))
-            encoded = torch.Tensor(encoded).long()
 
             encoded_captions = []
             for cap in captions:
@@ -173,24 +165,16 @@ class CaptionDataset(Dataset):
                 en.append(self.vocab(self.vocab.start_word))
                 en.extend([self.vocab(token) for token in cap])
                 en.append(self.vocab(self.vocab.end_word))
-                # Padding to max length for batching TODO: find max length of all captions
+
+                # Padding to max length for batching
                 en = en + [self.vocab(self.vocab.pad_word)] * (max(self.caption_lengths)+2-len(en))
                 encoded_captions.append(en)
-
             encoded_captions = torch.Tensor(encoded_captions).long()
-            return image, encoded, encoded_captions
 
-        else:
-            image_id = self.ids[idx]
-            
-            path = "./data/images/" + image_id + ".jpg"
-            image = Image.open(path).convert("RGB")
-            # Return only image for the TEST split
-            orig_image = np.array(image)
-            if self.transform is not None:
-                image = self.transform(image) 
-
-        return orig_image, image
+            if self.split == "TEST":
+                return np.array(orig_image), image, captions
+            else:
+                return image, encoded, encoded_captions
     
     def get_indices(self, lenght=False):
         sel_length = np.random.choice(self.caption_lengths)
@@ -222,21 +206,23 @@ def get_loader(split, batch_size, n_workers=0, transform=0):
         init_sampler = sampler.SubsetRandomSampler(indices=indices)
         length_sampler = sampler.BatchSampler(sampler=init_sampler, batch_size=dataset.batch_size, drop_last=False)
         loader = DataLoader(dataset, batch_sampler=length_sampler, num_workers=n_workers)
+
     elif split == "VAL":                                        
         dataset = CaptionDataset(split="VAL", transform=transform_val, batch_size=batch_size)
         indices = dataset.get_indices()
         init_sampler = sampler.SubsetRandomSampler(indices=indices)
         length_sampler = sampler.BatchSampler(sampler=init_sampler, batch_size=dataset.batch_size, drop_last=False)
         loader = DataLoader(dataset, batch_sampler=length_sampler, num_workers=n_workers)
+
     elif split == "TEST":                                
         dataset = CaptionDataset(split="TEST",transform=transform_val, batch_size=batch_size)
         loader = DataLoader(dataset, batch_size=1, num_workers=n_workers)
+
     elif split == "COMPLETE":
         if transform == 0:
             transform = transform_train
         else:
             transform = transform_val
-
         dataset = CaptionDataset(split="COMPLETE", transform=transform, batch_size=batch_size)
         indices = dataset.get_indices()
         init_sampler = sampler.SubsetRandomSampler(indices=indices)
