@@ -33,9 +33,6 @@ def train_sweep():
     
     # Wandb project init
     wandb.init(
-    project="autocaption",
-    notes="sweep",
-    tags=["sweep"],
     config=cfg_defaults,
     )
     
