@@ -1,4 +1,12 @@
+notebook
+jupyter_contrib_nbextensions
+jupyter_nbextensions_configurator
 pytorch
+torchvision
 fastprogress
 numpy
 pandas
+matplotlib
+seaborn
+nltk
+wordcloud

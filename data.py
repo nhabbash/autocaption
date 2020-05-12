@@ -9,12 +9,14 @@ import torchvision.transforms as transforms
 from collections import defaultdict, Counter
 from PIL import Image
 
+PATH_PRE="D:/dev/autocaption"
+
 class Vocabulary(object):
     def __init__(self,
                  freq_threshold,
                  rebuild_vocab=False,
-                 vocab_file="./data/vocab.json",
-                 captions_file="./data/captions.json",
+                 vocab_file=PATH_PRE+"/data/vocab.json",
+                 captions_file=PATH_PRE+"/data/captions.json",
                  ):
         self.rebuild_vocab = rebuild_vocab
         self.vocab_file = vocab_file
@@ -94,9 +96,9 @@ class CaptionDataset(Dataset):
 
         self.split = split
         split_dataset = {
-            "TRAIN": "data/captions/Flickr_8k.trainImages.txt",
-            "VAL":   "data/captions/Flickr_8k.devImages.txt", 
-            "TEST":  "data/captions/Flickr_8k.testImages.txt",
+            "TRAIN": PATH_PRE+"/data/captions/Flickr_8k.trainImages.txt",
+            "VAL":   PATH_PRE+"/data/captions/Flickr_8k.devImages.txt", 
+            "TEST":  PATH_PRE+"/data/captions/Flickr_8k.testImages.txt",
             "COMPLETE": "",
         }
         assert self.split in split_dataset.keys()
@@ -108,7 +110,7 @@ class CaptionDataset(Dataset):
             self.ids = [x.split('.')[0] for x in paths]
         
         # Get captions and lengths
-        with open("./data/captions.json", "r", encoding='utf-8') as f:
+        with open(PATH_PRE+"/data/captions.json", "r", encoding='utf-8') as f:
             self.captions = json.load(f)
             if self.split != "COMPLETE":
                 self.captions = [element for element in self.captions if element[1] in self.ids]
@@ -116,7 +118,7 @@ class CaptionDataset(Dataset):
 
     def get_raw_item(self, idx):
         caption, image_id = self.captions[idx]
-        path = "./data/images/" + image_id + ".jpg"
+        path = PATH_PRE+"/data/images/" + image_id + ".jpg"
         image = Image.open(path).convert("RGB")
 
         return image, caption
@@ -134,7 +136,7 @@ class CaptionDataset(Dataset):
         else:
             caption, image_id = self.captions[idx]
 
-        path = "./data/images/" + image_id + ".jpg"
+        path = PATH_PRE+"/data/images/" + image_id + ".jpg"
         orig_image = Image.open(path).convert("RGB")
         
         # Return image and caption

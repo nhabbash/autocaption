@@ -10,7 +10,6 @@ from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 from data import Vocabulary, get_loader
 from utils import get_caption
 from fastprogress.fastprogress import progress_bar, master_bar
-import wandb
 
 LOG_FREQ = 10
 SAVE_FREQ = 100
@@ -31,6 +30,7 @@ def train_sweep():
         "dataset": "flickr8k"
         }
     
+    """
     # Wandb project init
     wandb.init(
     config=cfg_defaults,
@@ -38,7 +38,7 @@ def train_sweep():
     
     # Config variable for sweeps
     cfg = wandb.config
-
+    """
     # Logs
     train_losses = []
     val_losses = []
@@ -56,7 +56,8 @@ def train_sweep():
                     len(train_loader.dataset.vocab),
                     cfg["n_layers"],
                     cfg["dropout"]).to(cfg["device"])
-    wandb.watch([encoder, decoder])
+
+    #wandb.watch([encoder, decoder])
 
     # Loss and optimizer
     criterion = nn.CrossEntropyLoss().to(cfg["device"])
@@ -99,13 +100,15 @@ def train_sweep():
         mb.write('# Loss {:.3f}, Perplexity {:.3f}, BLEU {:.3f}'.format(val_loss, np.exp(val_loss), val_bleu))
         mb.write(">Runtime {:.3f}".format(time.time() - start))
 
+        """
         # Send logs to wandb
         wandb.log({'train_loss': train_loss,
                 'train_perplexity': np.exp(train_loss),
                 'val_loss': val_loss,
                 'val_perplexity': np.exp(val_loss),
                 'val_bleu': val_bleu}, step=epoch)
-        
+        """
+
         if val_bleu > best_bleu:
             mb.write("Validation BLEU improved from {} to {}, saving model at ./data/models/sweep1/best-model.ckpt".format(best_bleu, val_bleu))
             best_bleu = val_bleu
@@ -133,12 +136,14 @@ def train_sweep():
                         "epoch": epoch
                     }, filename)
         
+        """
         # Saving last model to wandb, works only if Jupyter is executed as Admin
         try: 
             wandb.save(filename)
         except:
             pass
-            
+        """
+         
         if epoch > 5:
             if early_stopping(val_bleus, patience=3):
                 mb.write("Validation BLEU did not improve for 3 consecutive epochs, stopping")
