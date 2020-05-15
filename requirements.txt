@@ -10,3 +10,5 @@ matplotlib
 seaborn
 nltk
 wordcloud
+ax-platform
+wandb

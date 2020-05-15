@@ -18,6 +18,12 @@ $ conda env create -p .\cenv -f .\environment.yml # using conda
 $ jupyter nbextensions_configurator enable --user # optional
 ```
 
+# Training
+Uses:
+* [PyTorch](https://github.com/pytorch/pytorch) for deep learning
+* [Ax](https://github.com/facebook/Ax/) for hyperparameter tuning
+* [Weights and Biases](https://www.wandb.com/) for experiment tracking
+
 #
 ## Authors
 * **Nassim Habbash** - [nhabbash](https://github.com/nhabbash)

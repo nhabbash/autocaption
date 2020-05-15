@@ -1,8 +1,6 @@
 from torchvision import transforms
-from models import Encoder
-from PIL import Image
-from pickle import dump
-from collections import defaultdict, Counter
+import numpy as np
+from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 from data import Vocabulary
 import string
 import json
@@ -24,34 +22,6 @@ def download_dataset():
         zip.extractall(path="./data/", members = files)
 
     os.rename("./data/Flicker8k_Dataset/", "./data/images")
-
-def extract_features(dir="data/images"):
-    enc = Encoder()
-    features = defaultdict()
-
-    compose = transforms.Compose([
-                            transforms.RandomResizedCrop(224),
-                            transforms.ToTensor(),
-                            transforms.Normalize(
-                            mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225])
-    ])
-    
-    for filename in os.listdir(dir):
-        path = dir + "/" + filename
-        image = compose(Image.open(path).convert("RGB"))
-        feature = enc(image.unsqueeze(0)).squeeze(0)
-        
-        image_id = filename.split(".")[0]
-        features[image_id] = feature
-        
-        print(">{}".format(filename))
-    
-    print("Extracted features: {}".format(len(features)))
-
-    # Saving to file
-    print("Saving...")
-    dump(features, open("data/features.pkl", "wb"))
         
 def preprocess_captions(file="data/captions/Flickr8k.token.txt"):
     f = open(file, "r")
@@ -110,3 +80,38 @@ def get_caption(img, encoder, decoder, vocab, sample="beam", decode=True):
         return sentences
     else:
         return sample
+
+def bleu_eval(candidates, all_caps, v):
+    references = []
+    for batch in all_caps:
+        batch_ref = []
+        for cap in batch:
+            if isinstance(cap, str):
+                cap = []
+            else:
+                cap = [w.item() for w in cap if w not in [v(v.start_word), v(v.end_word), v(v.pad_word)]] # Strip <start>, <end> and <pad>
+            batch_ref.append(cap)
+        references.append(batch_ref)
+    batch_bleu = corpus_bleu(references, candidates, smoothing_function=SmoothingFunction().method1)
+
+    return batch_bleu
+
+def early_stopping(val_bleus, patience=3):
+
+    if patience > len(val_bleus):
+        return False
+    last_bleus = val_bleus[-patience:]
+    best_bleu = max(last_bleus)
+
+    #if len(set(last_bleus)) == 1:
+    if np.std(last_bleus) < 0.01:
+        return True
+
+    if best_bleu in last_bleus:
+        if best_bleu not in val_bleus[:len(val_bleus)-patience]:
+            return False
+        else:
+            return True
+
+    return True
+
