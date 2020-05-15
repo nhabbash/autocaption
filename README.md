@@ -1,6 +1,10 @@
 # Autocaption
 > Image caption generation in PyTorch using an encoder-decoder architecture
 
+<p align="center">
+  <img  src="docs/img/example.png">
+</p>
+
 ## Overview
 This work implements a variant model based on the paper [Show and Tell: A Neural Image Caption Generator](https://arxiv.org/pdf/1411.4555.pdf). Given an image, the model is able to describe in natural language the contents of the image. The model is comprised of the encoder, a pretrained CNN, which extracts high-level features from the image and feeds them to the decoder, an LSTM, which generates the sequences of words. 
 For more details check out the report and presentation under [`docs`](docs).
