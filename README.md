@@ -2,7 +2,7 @@
 > Image caption generation in PyTorch using an encoder-decoder architecture
 
 <p align="center">
-  <img  src="docs/img/example.png">
+  <img  src="docs/img/example.png" width="75%">
 </p>
 
 ## Overview
