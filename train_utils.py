@@ -1,5 +1,6 @@
 import time
 import json
+import uuid
 import os
 import math
 import numpy as np
@@ -14,8 +15,6 @@ from fastprogress.fastprogress import progress_bar, master_bar
 LOG_FREQ = 10
 SAVE_FREQ = 100
 
-experiment_folder = "./data/experiments/"+time.strftime("%Y-%m-%d")
-
 standard_cfg = { 
         "batch_size" : 32,
         "num_epochs" : 15,
@@ -29,12 +28,13 @@ standard_cfg = {
         "dataset": "flickr8k"
         }
 
-def train_models(cfg=standard_cfg, checkpoint=None):
+def train_models(cfg=standard_cfg, checkpoint=None, experiment_folder=None):
 
     if checkpoint:
+        # TODO: rework the checkpointing
         chk_epoch = checkpoint["epoch"]
         date = checkpoint["date"]
-        set_experiment_folder(date)
+        experiment_folder = experiment_folder
         filename = os.path.join(experiment_folder, "/models/model-{}.ckpt".format(chk_epoch))
         epoch_checkpoint = torch.load(filename)
 
@@ -50,7 +50,7 @@ def train_models(cfg=standard_cfg, checkpoint=None):
         best_bleu = epoch_checkpoint["val_bleu"]
     else:
         # Setting experiments folder
-        set_experiment_folder(time.strftime("%Y-%m-%d"))
+        experiment_folder = set_experiment_folder(experiment_folder, new_run=True)
         # Saving hyperparameters to json
         with open(experiment_folder+"/hyperparameters.json", "w", encoding='utf-8') as f:
             json.dump(cfg, f)
@@ -290,7 +290,13 @@ def test(loader, encoder, decoder, cfg, sample="beam"):
     results = sorted(results, key=lambda k: k['bleu']) 
     return results
 
-def set_experiment_folder(date):
+def set_experiment_folder(name, new_run=False):
+    date = time.strftime("%Y-%m-%d")
     experiment_folder = "./data/experiments/"+date
     if not os.path.exists(experiment_folder):
-        os.makedirs(experiment_folder + "/models")
+        os.makedirs(experiment_folder)
+    if new_run:
+        unique = str(uuid.uuid1())
+        os.makedirs(experiment_folder + "/" + unique + "/models")
+        experiment_folder += "/" + unique
+    return experiment_folder

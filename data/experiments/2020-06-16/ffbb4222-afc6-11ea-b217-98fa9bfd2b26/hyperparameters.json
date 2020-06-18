@@ -1,0 +1,1 @@
+{"lr": 0.0005577729577198625, "dropout": 0.31784547520801426, "momentum": 0.014810723778791727, "n_layers": 1, "batch_size": 32, "embed_size": 128, "hidden_size": 512, "num_epochs": 10}
