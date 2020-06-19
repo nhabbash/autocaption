@@ -31,6 +31,10 @@ Uses:
 * [Ax](https://github.com/facebook/Ax/) for hyperparameter tuning
 * [Weights and Biases](https://www.wandb.com/) for experiment tracking
 
+For a detailed example, check the training notebook under  [`./notebooks/training`](./notebooks/training)
+
+Pretrained model [here](https://drive.google.com/file/d/1_q-5McUicm6Qig47B-bDhgvK5_UC1LfQ/view?usp=sharing) (the same used in the report)
+
 #
 ## Authors
 * **Nassim Habbash** - [nhabbash](https://github.com/nhabbash)
