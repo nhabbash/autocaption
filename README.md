@@ -10,7 +10,7 @@ This work implements a variant model based on the paper [Show and Tell: A Neural
 
 #### [Live demo](https://nhabbash.github.io/autocaption)
 #### [Documentatation](docs/report.pdf)
-#### [Presentation](docs/presentation.pdf)
+#### [Slides](docs/slides.pdf)
 
 # Prerequisites
 * Conda or Virtualenv
