@@ -12,7 +12,7 @@ class Encoder(nn.Module):
         self.tune = tune
         # Load pretrained ResNet
         resnet = models.resnet101()
-        resnet.load_state_dict(torch.load("./data/resnet101-5d3b4d8f.pth"))
+        #resnet.load_state_dict(torch.load("./data/resnet101-5d3b4d8f.pth"))
 
         # Delete the last FC and pooling layers
         modules = list(resnet.children())[:-1]

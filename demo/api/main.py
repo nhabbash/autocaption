@@ -4,9 +4,8 @@ from PIL import Image
 from starlette.requests import Request
 import io
 
-import torch 
+from torch import load, device
 import torchvision.transforms as transforms
-from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from models import Encoder, Decoder
 from utils import get_caption
 from data import Vocabulary
@@ -24,7 +23,7 @@ vocab = Vocabulary(freq_threshold=5)
 
 def load_model():
     model_path = "./data/model-6.ckpt"
-    checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
+    checkpoint = load(model_path, map_location=device('cpu'))
     encoder = Encoder(cfg["embed_size"], cfg["momentum"]).to(cfg["device"])
     decoder = Decoder(cfg["embed_size"], 
                     cfg["hidden_size"], 
@@ -60,8 +59,16 @@ app.add_middleware(
     allow_methods=["DELETE", "GET", "POST", "PUT"],
     allow_headers=["*"])
 
+@app.get("/healthcheck")
+async def healthcheck():
+    msg = (
+        "this sentence is already halfway over, "
+        "and still hasn't said anything at all"
+    )
+    return {"message": msg}
+
 @app.post("/predict")
-def predict(request: Request, 
+async def predict(request: Request, 
             file: bytes = File(...)):
     data = {"success": False}
 

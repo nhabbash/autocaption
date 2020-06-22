@@ -12,7 +12,7 @@
             height="400" 
             margin="16" 
             accept="image/jpeg,image/png" 
-            size="10" 
+            size="4" 
             button-class="btn-sm btn-secondary" 
             removeButtonClass="btn-sm btn-secondary" 
             :removable="true"
