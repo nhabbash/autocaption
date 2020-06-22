@@ -1,0 +1,6 @@
+torch
+torchvision
+nltk
+numpy
+python-multipart
+Pillow
