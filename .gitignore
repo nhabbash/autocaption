@@ -8,3 +8,5 @@ data/models
 wandb
 .vscode
 models
+model-*
+resnet*

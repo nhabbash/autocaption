@@ -1,7 +1,7 @@
 notebook
 jupyter_contrib_nbextensions
 jupyter_nbextensions_configurator
-pytorch
+torch
 torchvision
 fastprogress
 numpy
