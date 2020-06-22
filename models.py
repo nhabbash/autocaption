@@ -11,7 +11,7 @@ class Encoder(nn.Module):
 
         self.tune = tune
         # Load pretrained ResNet
-        resnet = models.resnet101()
+        resnet = models.resnet101(pretrained=True)
 
         # Delete the last FC and pooling layers
         modules = list(resnet.children())[:-1]
