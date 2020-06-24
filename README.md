@@ -34,7 +34,7 @@ Uses:
 For a detailed example, check the training notebook under  [`./notebooks/training`](./notebooks/training)
 
 # Notes
-* The best model obtained after training and hyperparameter tuning achieves an average BLEU score on the test split of 11, compared to 27.2 of the original paper.
+* The best model obtained after training and hyperparameter tuning achieves an average BLEU score on the test split of 11, compared to 27.2 of the original paper. (See the [report](docs/report.pdf) or the [slides](docs/slides.pdf) for more details on the performance)
 * The model works best with pictures similar to those it has been trained on. In the case of Flickr8k, pictures with one or two subjects doing some simple activities. It works pretty good with dogs playing around and people engaging in a couple of sports (e.g. surfing).
 * The API of the demo is deployed on Heroku, it might take some time to get a caption. Locally on CPU it takes about 5 seconds.
 
