@@ -35,8 +35,8 @@ For a detailed example, check the training notebook under  [`./notebooks/trainin
 
 # Notes
 * The best model obtained after training and hyperparameter tuning achieves an average BLEU score on the test split of 11, compared to 27.2 of the original paper. (See the [report](docs/report.pdf) or the [slides](docs/slides.pdf) for more details on the performance)
-* The model works best with pictures similar to those it has been trained on. In the case of Flickr8k, pictures with one or two subjects doing some simple activities. It works pretty good with dogs playing around and people engaging in a couple of sports (e.g. surfing).
-* The API of the demo is deployed on Heroku, it might take some time to get a caption. Locally on CPU it takes about 5 seconds.
+* The model works best with pictures similar to those it has been trained on. In the case of Flickr8k, pictures with one or two subjects doing some simple activities. It works pretty good with dogs playing around and people engaging in a couple of sports (e.g. surfing, trekking on mountains).
+* The demo is made in Vue.js for the frontend and FastAPI for the backend. The backend is deployed on Heroku, and if it's the first time running in a while it does take a couple of minutes to start up and generate the first caption, after that it usually takes a dozen seconds. If running the demo locally (You can if you have Docker Compose) caption generation takes about 5 seconds.
 
 ## Authors
 * **Nassim Habbash** - [nhabbash](https://github.com/nhabbash)
