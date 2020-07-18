@@ -12,7 +12,7 @@
             height="400" 
             margin="16" 
             accept="image/jpeg,image/png" 
-            size="4" 
+            size="10" 
             button-class="btn-sm btn-secondary" 
             removeButtonClass="btn-sm btn-secondary" 
             :removable="true"
@@ -23,9 +23,10 @@
           </picture-input>
           <button class="btn btn-sm btn-light" v-on:click="submitFile()">Generate caption</button>
         </div>
-      <div class="col-sm d-flex align-items-center justify-content-center">
+      <div class="col-sm d-flex flex-column justify-content-center align-items-center">
+        <div class="top">Top 5 generated caption:</div>
         <Spinner v-if="this.loading==true" size="medium" />
-        <ol>
+        <ol class="captions">
           <li v-for="item in captions" :key="item">
             {{ item }}
           </li>
@@ -34,7 +35,13 @@
     </div>
   </div>
     <a href="https://github.com/nhabbash/autocaption" class="text-decoration-none">View project on GitHub</a>
+    <div>
+      <p class="notes">
+        Note: the API is hosted on Heroku and it might take some time to generate the first captions (the dyno has to start up). After that it takes roughly 10s to generate a caption.
+      </p>
+    </div>
   </div>
+
 </template>
 
 <script>
@@ -134,6 +141,14 @@ picture li {
 
 a {
   color: #42b983;
+}
+
+.notes {
+  font-size: 0.8em;
+}
+
+.captions {
+  align-self: center;
 }
 </style>
 
